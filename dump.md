@@ -116,12 +116,13 @@ A small program (Zig / Go / Python) that:
   fetching itself — it's a renderer + scheduler.
 - **Multiple viewports**: the endpoint takes a viewport param (e.g.
   `/frame?viewport=planes`). Each viewport is a separate grid + view logic.
-- **Stateless server, time-dependent frames**: the server renders
-  `frame = f(time, data)`. Stateless with respect to *clients* (never tracks what
-  a client is showing), stateful with respect to *time* and *data*. Movement
-  (scrolling, blinking, tickers, spinners) is just the frame changing as time
-  passes. The client's poll rate is the frame rate; the server's time-dependence
-  is the animation.
+- **Tiny video model**: the server pre-renders a *sequence* of frames (a seamless
+  animation loop, like a GIF) and sends them all in one response. The client
+  loops the frames locally at a fixed rate. Refresh interval is large (~1 minute).
+  Movement is pre-rendered server-side and played back client-side — smooth
+  animation without frequent polling. The diff/delta protocol is dead (full-frame
+  sequences are small enough). The frame rate is server-specified (frame duration
+  in the response).
 - **Terminal client (debugging flow)**: a small Zig program that polls the server
   and renders the frame to the terminal using zell. It's the *reference client* —
   the ESP32 firmware is a port of it to C + OLED. Develop and debug entirely in
@@ -129,12 +130,13 @@ A small program (Zig / Go / Python) that:
 
 ## Open questions / decisions
 
-- [ ] Protocol: JSON full-frame vs binary diff (start JSON, graduate to diff)
+- [ ] Frame sequence format: JSON vs binary, and how to specify frame rate/duration
 - [ ] Transport: HTTP polling vs WebSocket (start HTTP polling)
 - [ ] Font: Adafruit `glcdfont` vs custom (custom = terminal aesthetic)
 - [ ] Repo structure: `protocol/` + `server/` + `firmware/` + `client/` (terminal debug client)
 - [ ] Which view first: ADS-B plane counter (dump1090 already working)
 - [ ] Plugin interface: how a plugin is invoked and what it returns (stdout JSON? plain text?)
+- [ ] Loop length vs refresh interval (start ~3-5s loop, ~30-60s refresh)
 
 ## The "aha"
 
