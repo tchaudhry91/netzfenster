@@ -108,14 +108,33 @@ A small program (Zig / Go / Python) that:
 - **QEMU (espressif fork)** — boots firmware, but no WiFi/BT, patchy peripherals. CI-oriented.
 - **Host tests (`linux` target)** — run pure logic on the host machine.
 
+## Server decisions (2026-08-31)
+
+- **Language: Zig** (confirmed). The grid library is a zell port; one language end-to-end.
+- **Plugin system**: data fetching is shelled out to tiny programs (plugins). The
+  server runs a plugin, captures stdout, parses it. The server doesn't do the
+  fetching itself — it's a renderer + scheduler.
+- **Multiple viewports**: the endpoint takes a viewport param (e.g.
+  `/frame?viewport=planes`). Each viewport is a separate grid + view logic.
+- **Stateless server, time-dependent frames**: the server renders
+  `frame = f(time, data)`. Stateless with respect to *clients* (never tracks what
+  a client is showing), stateful with respect to *time* and *data*. Movement
+  (scrolling, blinking, tickers, spinners) is just the frame changing as time
+  passes. The client's poll rate is the frame rate; the server's time-dependence
+  is the animation.
+- **Terminal client (debugging flow)**: a small Zig program that polls the server
+  and renders the frame to the terminal using zell. It's the *reference client* —
+  the ESP32 firmware is a port of it to C + OLED. Develop and debug entirely in
+  the terminal.
+
 ## Open questions / decisions
 
 - [ ] Protocol: JSON full-frame vs binary diff (start JSON, graduate to diff)
 - [ ] Transport: HTTP polling vs WebSocket (start HTTP polling)
 - [ ] Font: Adafruit `glcdfont` vs custom (custom = terminal aesthetic)
-- [ ] Server language: Zig (reuse zell) vs Go vs Python
-- [ ] Repo structure: `protocol/` + `server/` + `firmware/`
+- [ ] Repo structure: `protocol/` + `server/` + `firmware/` + `client/` (terminal debug client)
 - [ ] Which view first: ADS-B plane counter (dump1090 already working)
+- [ ] Plugin interface: how a plugin is invoked and what it returns (stdout JSON? plain text?)
 
 ## The "aha"
 
