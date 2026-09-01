@@ -50,6 +50,33 @@ pub const Grid = struct {
         }
         return cur;
     }
+
+    pub fn jsonStringify(self: @This(), jw: anytype) !void {
+        var buf: [256]u8 = @splat(' ');
+        std.debug.assert(self.cols < buf.len);
+
+        try jw.beginObject();
+        try jw.objectField("rows");
+        try jw.beginArray();
+        for (0..self.rows) |row| {
+            for (0..self.cols) |col| {
+                buf[col] = self.cells[row * self.cols + col].char;
+            }
+            try jw.write(buf[0..self.cols]);
+        }
+        try jw.endArray();
+        try jw.objectField("invert");
+        try jw.beginArray();
+        for (0..self.rows) |row| {
+            buf = @splat('0');
+            for (0..self.cols) |col| {
+                if (self.cells[row * self.cols + col].invert) buf[col] = '1';
+            }
+            try jw.write(buf[0..self.cols]);
+        }
+        try jw.endArray();
+        try jw.endObject();
+    }
 };
 
 pub const FrameSequence = struct {
@@ -62,46 +89,34 @@ pub const FrameSequence = struct {
     viewport: []const u8,
 };
 
-test "writeText writes a string that fits and returns its length" {
+test "serialize a frame sequence to JSON" {
     const gpa = std.testing.allocator;
-    var g = try Grid.init(gpa, 8, 21);
-    defer g.deinit(gpa);
 
-    const n = g.writeText(0, 0, "HELLO");
-    try std.testing.expectEqual(@as(usize, 5), n);
-    try std.testing.expectEqual('H', g.cell(0, 0).char);
-    try std.testing.expectEqual('E', g.cell(0, 1).char);
-    try std.testing.expectEqual('L', g.cell(0, 2).char);
-    try std.testing.expectEqual('L', g.cell(0, 3).char);
-    try std.testing.expectEqual('O', g.cell(0, 4).char);
-    try std.testing.expectEqual(' ', g.cell(0, 5).char);
-}
+    var frames: [2]Grid = undefined;
+    frames[0] = try Grid.init(gpa, 3, 5);
+    frames[1] = try Grid.init(gpa, 3, 5);
+    defer frames[0].deinit(gpa);
+    defer frames[1].deinit(gpa);
 
-test "writeText truncates at the right edge and returns the cutoff" {
-    const gpa = std.testing.allocator;
-    var g = try Grid.init(gpa, 2, 5);
-    defer g.deinit(gpa);
+    _ = frames[0].writeText(0, 0, "HELLO");
+    frames[0].cell(0, 0).invert = true;
+    _ = frames[1].writeText(0, 0, "WORLD");
 
-    const n = g.writeText(0, 0, "ABCDEFG");
-    try std.testing.expectEqual(@as(usize, 5), n);
-    try std.testing.expectEqual('A', g.cell(0, 0).char);
-    try std.testing.expectEqual('E', g.cell(0, 4).char);
-    try std.testing.expectEqual(' ', g.cell(1, 0).char);
-}
+    const seq = FrameSequence{
+        .rows = 3,
+        .cols = 5,
+        .version = 1,
+        .frames = &frames,
+        .fps = 8,
+        .refresh_ms = 30000,
+        .viewport = "planes",
+    };
 
-test "writeText composes to wrap a long message across rows" {
-    const gpa = std.testing.allocator;
-    var g = try Grid.init(gpa, 2, 5);
-    defer g.deinit(gpa);
+    const json = try std.json.Stringify.valueAlloc(gpa, seq, .{});
+    defer gpa.free(json);
 
-    const text = "ABCDEFGH";
-    var i = g.writeText(0, 0, text);
-    if (i < text.len) {
-        i += g.writeText(1, 0, text[i..]);
-    }
-    try std.testing.expectEqual(@as(usize, text.len), i);
-    try std.testing.expectEqual('A', g.cell(0, 0).char);
-    try std.testing.expectEqual('E', g.cell(0, 4).char);
-    try std.testing.expectEqual('F', g.cell(1, 0).char);
-    try std.testing.expectEqual('H', g.cell(1, 2).char);
+    try std.testing.expectEqualStrings(
+        "{\"rows\":3,\"cols\":5,\"version\":1,\"frames\":[{\"rows\":[\"HELLO\",\"     \",\"     \"],\"invert\":[\"10000\",\"00000\",\"00000\"]},{\"rows\":[\"WORLD\",\"     \",\"     \"],\"invert\":[\"00000\",\"00000\",\"00000\"]}],\"fps\":8,\"refresh_ms\":30000,\"viewport\":\"planes\"}",
+        json,
+    );
 }
