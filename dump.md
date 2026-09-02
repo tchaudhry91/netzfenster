@@ -116,7 +116,7 @@ A small program (Zig / Go / Python) that:
   fetching itself — it's a renderer + scheduler.
 - **Multiple viewports**: the endpoint takes a viewport param (e.g.
   `/frame?viewport=planes`). Each viewport is a separate grid + view logic.
-- **Tiny video model**: the server pre-renders a *sequence* of frames (a seamless
+- **Tiny video model** (superseded — see session 2 below): the server pre-renders a *sequence* of frames (a seamless
   animation loop, like a GIF) and sends them all in one response. The client
   loops the frames locally at a fixed rate. Refresh interval is large (~1 minute).
   Movement is pre-rendered server-side and played back client-side — smooth
@@ -127,6 +127,22 @@ A small program (Zig / Go / Python) that:
   and renders the frame to the terminal using zell. It's the *reference client* —
   the ESP32 firmware is a port of it to C + OLED. Develop and debug entirely in
   the terminal.
+
+## Server decisions (session 2 — 2026-08-31)
+
+- **Single-frame model** (supersedes the tiny video model): the server serves
+  one frame per response; the client polls at `refresh_ms`. No `fps`, no loop,
+  no pre-rendered sequences. Static views only for now. A 21×8 frame is ~340
+  bytes, so even a 1s poll is trivial on WiFi.
+- **Plugin contract (Path A)**: a plugin is a script that prints plain-text
+  lines to stdout — one line per row. The server writes the lines to a grid and
+  wraps it in a `Frame`. No JSON, no delimiter, no animation. The plugin *is*
+  the view; edit the script, no recompile.
+- **Cycling**: server-side, via a time-dependent `cycle` viewport. The server
+  holds a list of sub-views + a dwell time; on each poll it computes
+  `index = (now / dwell) % len(cycle)` and renders that sub-view. The client
+  polls one viewport and stays dumb. The schedule lives on the server.
+- **Naming**: `Cell` → `Grid` → `Frame` (the wire object: metadata + one grid).
 
 ## Open questions / decisions
 
