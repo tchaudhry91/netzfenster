@@ -37,18 +37,42 @@ pub const Grid = struct {
         self.cell(row, col).char = char;
     }
 
-    /// Writes `text` to `row` starting at `col`, truncating at the right edge.
+    /// Writes `line` to `row` starting at `col`, truncating at the right edge.
     ///
     /// Returns the number of characters written. If the whole string fits, this
-    /// equals `text.len`; otherwise it is the index into `text` of the first
+    /// equals `line.len`; otherwise it is the index into `line` of the first
     /// character that did not fit. The caller can continue on the next row by
-    /// passing `text[returned..]`.
-    pub fn writeText(self: *Grid, row: usize, col: usize, text: []const u8) usize {
+    /// passing `line[returned..]`.
+    pub fn writeLine(self: *Grid, row: usize, col: usize, line: []const u8) usize {
         var cur: usize = 0;
-        while ((cur + col < self.cols) and (cur < text.len)) : (cur += 1) {
-            self.write(row, cur + col, text[cur]);
+        while ((cur + col < self.cols) and (cur < line.len)) : (cur += 1) {
+            self.write(row, cur + col, line[cur]);
         }
         return cur;
+    }
+
+    pub fn writeText(self: *Grid, text: []const u8) usize {
+        var curCol: usize = 0;
+        var curRow: usize = 0;
+        var lines = std.mem.splitScalar(u8, text, '\n');
+        while (lines.next()) |line| {
+            if (curRow >= self.rows) {
+                return (line.ptr - text.ptr);
+            }
+            var ret = self.writeLine(curRow, curCol, line);
+            curRow += 1;
+            curCol = 2;
+            while (ret != line.len) {
+                if (curRow >= self.rows) {
+                    return (line.ptr - text.ptr) + ret;
+                }
+                // Write the continuation lines if any
+                ret += self.writeLine(curRow, curCol, line[ret..]);
+                curRow += 1;
+            }
+            curCol = 0;
+        }
+        return text.len;
     }
 
     pub fn jsonStringify(self: @This(), jw: anytype) !void {
@@ -98,9 +122,9 @@ test "serialize a frame sequence to JSON" {
     defer frames[0].deinit(gpa);
     defer frames[1].deinit(gpa);
 
-    _ = frames[0].writeText(0, 0, "HELLO");
+    _ = frames[0].writeLine(0, 0, "HELLO");
     frames[0].cell(0, 0).invert = true;
-    _ = frames[1].writeText(0, 0, "WORLD");
+    _ = frames[1].writeLine(0, 0, "WORLD");
 
     const seq = FrameSequence{
         .rows = 3,
@@ -119,4 +143,74 @@ test "serialize a frame sequence to JSON" {
         "{\"rows\":3,\"cols\":5,\"version\":1,\"frames\":[{\"rows\":[\"HELLO\",\"     \",\"     \"],\"invert\":[\"10000\",\"00000\",\"00000\"]},{\"rows\":[\"WORLD\",\"     \",\"     \"],\"invert\":[\"00000\",\"00000\",\"00000\"]}],\"refresh_ms\":30000,\"frame_dwell_ms\":500,\"viewport\":\"planes\"}",
         json,
     );
+}
+
+test "writeText writes multiple lines" {
+    const gpa = std.testing.allocator;
+    var g = try Grid.init(gpa, 3, 5);
+    defer g.deinit(gpa);
+
+    _ = g.writeText("HELLO\nWORLD");
+
+    try std.testing.expectEqual('H', g.cell(0, 0).char);
+    try std.testing.expectEqual('O', g.cell(0, 4).char);
+    try std.testing.expectEqual('W', g.cell(1, 0).char);
+    try std.testing.expectEqual('D', g.cell(1, 4).char);
+    try std.testing.expectEqual(' ', g.cell(2, 0).char);
+}
+
+test "writeText wraps a long line with indent" {
+    const gpa = std.testing.allocator;
+    var g = try Grid.init(gpa, 3, 5);
+    defer g.deinit(gpa);
+
+    _ = g.writeText("HELLOWORLD");
+
+    std.debug.print("grid:\n", .{});
+    for (0..g.rows) |row| {
+        std.debug.print("|", .{});
+        for (0..g.cols) |col| {
+            std.debug.print("{c}", .{g.cell(row, col).char});
+        }
+        std.debug.print("|\n", .{});
+    }
+
+    // row 0: "HELLO"
+    try std.testing.expectEqual('H', g.cell(0, 0).char);
+    try std.testing.expectEqual('O', g.cell(0, 4).char);
+    // row 1: "  WOR" (2-space indent)
+    try std.testing.expectEqual(' ', g.cell(1, 0).char);
+    try std.testing.expectEqual(' ', g.cell(1, 1).char);
+    try std.testing.expectEqual('W', g.cell(1, 2).char);
+    try std.testing.expectEqual('R', g.cell(1, 4).char);
+    // row 2: "  LD"
+    try std.testing.expectEqual(' ', g.cell(2, 0).char);
+    try std.testing.expectEqual(' ', g.cell(2, 1).char);
+    try std.testing.expectEqual('L', g.cell(2, 2).char);
+    try std.testing.expectEqual('D', g.cell(2, 3).char);
+}
+
+test "writeText returns the resume index" {
+    const gpa = std.testing.allocator;
+
+    // Everything fits: returns text.len.
+    {
+        var g = try Grid.init(gpa, 3, 5);
+        defer g.deinit(gpa);
+        try std.testing.expectEqual(@as(usize, 11), g.writeText("HELLO\nWORLD"));
+    }
+
+    // Stops mid-line: returns index of the first unwritten char.
+    {
+        var g = try Grid.init(gpa, 2, 5);
+        defer g.deinit(gpa);
+        try std.testing.expectEqual(@as(usize, 8), g.writeText("HELLOWORLD"));
+    }
+
+    // Stops at a fresh line: returns index of that line's start.
+    {
+        var g = try Grid.init(gpa, 3, 5);
+        defer g.deinit(gpa);
+        try std.testing.expectEqual(@as(usize, 6), g.writeText("A\nB\nC\nD"));
+    }
 }
