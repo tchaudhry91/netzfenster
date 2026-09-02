@@ -79,11 +79,11 @@ pub const Grid = struct {
     }
 };
 
-pub const FrameSequence = struct {
+pub const Frame = struct {
     rows: u8,
     cols: u8,
     version: u8,
-    frame: Grid,
+    grid: Grid,
     refresh_ms: u32,
     viewport: []const u8,
 };
@@ -91,26 +91,26 @@ pub const FrameSequence = struct {
 test "serialize a frame to JSON" {
     const gpa = std.testing.allocator;
 
-    var frame = try Grid.init(gpa, 3, 5);
-    defer frame.deinit(gpa);
+    var grid = try Grid.init(gpa, 3, 5);
+    defer grid.deinit(gpa);
 
-    _ = frame.writeText(0, 0, "HELLO");
-    frame.cell(0, 0).invert = true;
+    _ = grid.writeText(0, 0, "HELLO");
+    grid.cell(0, 0).invert = true;
 
-    const seq = FrameSequence{
+    const f = Frame{
         .rows = 3,
         .cols = 5,
         .version = 1,
-        .frame = frame,
+        .grid = grid,
         .refresh_ms = 30000,
         .viewport = "planes",
     };
 
-    const json = try std.json.Stringify.valueAlloc(gpa, seq, .{});
+    const json = try std.json.Stringify.valueAlloc(gpa, f, .{});
     defer gpa.free(json);
 
     try std.testing.expectEqualStrings(
-        "{\"rows\":3,\"cols\":5,\"version\":1,\"frame\":{\"rows\":[\"HELLO\",\"     \",\"     \"],\"invert\":[\"10000\",\"00000\",\"00000\"]},\"refresh_ms\":30000,\"viewport\":\"planes\"}",
+        "{\"rows\":3,\"cols\":5,\"version\":1,\"grid\":{\"rows\":[\"HELLO\",\"     \",\"     \"],\"invert\":[\"10000\",\"00000\",\"00000\"]},\"refresh_ms\":30000,\"viewport\":\"planes\"}",
         json,
     );
 }

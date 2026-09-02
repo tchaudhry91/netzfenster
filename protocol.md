@@ -50,7 +50,7 @@ grid it is handed.
   "cols": 21,
   "rows": 8,
   "refresh_ms": 30000,
-  "frame": {
+  "grid": {
     "rows": ["…", "…"],
     "invert": ["…", "…"]
   }
@@ -66,7 +66,7 @@ grid it is handed.
   "cols": 21,
   "rows": 8,
   "refresh_ms": 30000,
-  "frame": {
+  "grid": {
     "rows": [
       "ADS-B  3 PLANES      ",
       "                    ",
@@ -100,9 +100,9 @@ grid it is handed.
 | `cols`          | int      | Grid width in cells. Must match the request.                      |
 | `rows`          | int      | Grid height in cells. Must match the request.                     |
 | `refresh_ms`    | int      | When the client should re-poll, in milliseconds.                  |
-| `frame`         | object   | The frame: a full grid.                                          |
-| `frame.rows`    | string[] | Exactly `rows` strings, each exactly `cols` chars. `rows[i][j]` is the glyph at cell (col `j`, row `i`). |
-| `frame.invert`  | string[] | Same shape as `rows`, of `'0'`/`'1'`. `'1'` → cell inverted. May be omitted (treated as all `'0'`). |
+| `grid`          | object   | The frame content: a full grid of cells.                        |
+| `grid.rows`     | string[] | Exactly `rows` strings, each exactly `cols` chars. `rows[i][j]` is the glyph at cell (col `j`, row `i`). |
+| `grid.invert`   | string[] | Same shape as `rows`, of `'0'`/`'1'`. `'1'` → cell inverted. May be omitted (treated as all `'0'`). |
 
 ## Cell encoding
 
@@ -131,8 +131,8 @@ The server is display-agnostic: it renders to the grid it is asked for.
 
 A client MUST reject a response that violates any of:
 
-- `frame.rows` has length ≠ `rows`, or any string length ≠ `cols`.
-- `frame.invert` (if present) has length ≠ `rows`, or any string length ≠ `cols`, or contains a char other than `'0'`/`'1'`.
+- `grid.rows` has length ≠ `rows`, or any string length ≠ `cols`.
+- `grid.invert` (if present) has length ≠ `rows`, or any string length ≠ `cols`, or contains a char other than `'0'`/`'1'`.
 
 `invert` omitted → all cells not inverted.
 
