@@ -83,31 +83,25 @@ pub const FrameSequence = struct {
     rows: u8,
     cols: u8,
     version: u8,
-    frames: []Grid,
-    fps: u8,
+    frame: Grid,
     refresh_ms: u32,
     viewport: []const u8,
 };
 
-test "serialize a frame sequence to JSON" {
+test "serialize a frame to JSON" {
     const gpa = std.testing.allocator;
 
-    var frames: [2]Grid = undefined;
-    frames[0] = try Grid.init(gpa, 3, 5);
-    frames[1] = try Grid.init(gpa, 3, 5);
-    defer frames[0].deinit(gpa);
-    defer frames[1].deinit(gpa);
+    var frame = try Grid.init(gpa, 3, 5);
+    defer frame.deinit(gpa);
 
-    _ = frames[0].writeText(0, 0, "HELLO");
-    frames[0].cell(0, 0).invert = true;
-    _ = frames[1].writeText(0, 0, "WORLD");
+    _ = frame.writeText(0, 0, "HELLO");
+    frame.cell(0, 0).invert = true;
 
     const seq = FrameSequence{
         .rows = 3,
         .cols = 5,
         .version = 1,
-        .frames = &frames,
-        .fps = 8,
+        .frame = frame,
         .refresh_ms = 30000,
         .viewport = "planes",
     };
@@ -116,7 +110,7 @@ test "serialize a frame sequence to JSON" {
     defer gpa.free(json);
 
     try std.testing.expectEqualStrings(
-        "{\"rows\":3,\"cols\":5,\"version\":1,\"frames\":[{\"rows\":[\"HELLO\",\"     \",\"     \"],\"invert\":[\"10000\",\"00000\",\"00000\"]},{\"rows\":[\"WORLD\",\"     \",\"     \"],\"invert\":[\"00000\",\"00000\",\"00000\"]}],\"fps\":8,\"refresh_ms\":30000,\"viewport\":\"planes\"}",
+        "{\"rows\":3,\"cols\":5,\"version\":1,\"frame\":{\"rows\":[\"HELLO\",\"     \",\"     \"],\"invert\":[\"10000\",\"00000\",\"00000\"]},\"refresh_ms\":30000,\"viewport\":\"planes\"}",
         json,
     );
 }

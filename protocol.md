@@ -5,10 +5,9 @@ ESP32 later). Version 1.
 
 ## Overview
 
-A client asks the server for a **frame sequence** — a short, seamless animation
-loop — and plays it locally at a server-specified rate. The server re-renders
-the sequence only when its data changes, so the client polls rarely (on the
-order of a minute) but animates smoothly in between.
+A client asks the server for a **frame** — the current state of a grid of
+cells — and renders it. The client polls at the server-specified `refresh_ms`
+interval. The server re-renders only when its data changes.
 
 The unit of rendering is the **cell**, not the pixel. The server never thinks in
 pixels; it lays out a grid of cells. The client rasterizes cells to pixels.
@@ -21,7 +20,6 @@ pixels; it lays out a grid of cells. The client rasterizes cells to pixels.
   - `invert` — a boolean; the monochrome stand-in for "highlight" (header row,
     selected item, cursor block).
 - A **frame** is a full grid: every cell, every time. No diffs.
-- A **sequence** is an ordered list of frames played at a fixed `fps`. Sequences **always loop** — a single-frame sequence is a static display that holds forever.
 
 ## Request
 
@@ -51,14 +49,11 @@ grid it is handed.
   "viewport": "planes",
   "cols": 21,
   "rows": 8,
-  "fps": 8,
   "refresh_ms": 30000,
-  "frames": [
-    {
-      "rows": ["…", "…"],
-      "invert": ["…", "…"]
-    }
-  ]
+  "frame": {
+    "rows": ["…", "…"],
+    "invert": ["…", "…"]
+  }
 }
 ```
 
@@ -70,48 +65,44 @@ grid it is handed.
   "viewport": "planes",
   "cols": 21,
   "rows": 8,
-  "fps": 8,
   "refresh_ms": 30000,
-  "frames": [
-    {
-      "rows": [
-        "ADS-B  3 PLANES      ",
-        "                    ",
-        "  ██  ██  ██        ",
-        "                    ",
-        "                    ",
-        "                    ",
-        "                    ",
-        "                    "
-      ],
-      "invert": [
-        "111111111111111111111",
-        "000000000000000000000",
-        "000000000000000000000",
-        "000000000000000000000",
-        "000000000000000000000",
-        "000000000000000000000",
-        "000000000000000000000",
-        "000000000000000000000"
-      ]
-    }
-  ]
+  "frame": {
+    "rows": [
+      "ADS-B  3 PLANES      ",
+      "                    ",
+      "  ██  ██  ██        ",
+      "                    ",
+      "                    ",
+      "                    ",
+      "                    ",
+      "                    "
+    ],
+    "invert": [
+      "111111111111111111111",
+      "000000000000000000000",
+      "000000000000000000000",
+      "000000000000000000000",
+      "000000000000000000000",
+      "000000000000000000000",
+      "000000000000000000000",
+      "000000000000000000000"
+    ]
+  }
 }
 ```
 
 ### Field reference
 
-| Field         | Type    | Meaning                                                          |
-| ------------- | ------- | ---------------------------------------------------------------- |
-| `version`     | int     | Protocol version. Currently `1`.                                 |
-| `viewport`    | string  | Echo of the requested viewport.                                  |
-| `cols`        | int     | Grid width in cells. Must match the request.                      |
-| `rows`        | int     | Grid height in cells. Must match the request.                     |
-| `fps`         | int     | Playback rate, frames per second. Must be `> 0`.                  |
-| `refresh_ms`  | int     | When the client should re-poll, in milliseconds.                  |
-| `frames`      | array   | Non-empty list of frame objects, in playback order.               |
-| `frames[].rows`   | string[] | Exactly `rows` strings, each exactly `cols` chars. `rows[i][j]` is the glyph at cell (col `j`, row `i`). |
-| `frames[].invert` | string[] | Same shape as `rows`, of `'0'`/`'1'`. `'1'` → cell inverted. May be omitted (treated as all `'0'`). |
+| Field           | Type     | Meaning                                                          |
+| --------------- | -------- | ---------------------------------------------------------------- |
+| `version`       | int      | Protocol version. Currently `1`.                                 |
+| `viewport`      | string   | Echo of the requested viewport.                                  |
+| `cols`          | int      | Grid width in cells. Must match the request.                      |
+| `rows`          | int      | Grid height in cells. Must match the request.                     |
+| `refresh_ms`    | int      | When the client should re-poll, in milliseconds.                  |
+| `frame`         | object   | The frame: a full grid.                                          |
+| `frame.rows`    | string[] | Exactly `rows` strings, each exactly `cols` chars. `rows[i][j]` is the glyph at cell (col `j`, row `i`). |
+| `frame.invert`  | string[] | Same shape as `rows`, of `'0'`/`'1'`. `'1'` → cell inverted. May be omitted (treated as all `'0'`). |
 
 ## Cell encoding
 
@@ -140,10 +131,8 @@ The server is display-agnostic: it renders to the grid it is asked for.
 
 A client MUST reject a response that violates any of:
 
-- `frames` is empty.
-- `fps <= 0`.
-- `frames[].rows` has length ≠ `rows`, or any string length ≠ `cols`.
-- `frames[].invert` (if present) has length ≠ `rows`, or any string length ≠ `cols`, or contains a char other than `'0'`/`'1'`.
+- `frame.rows` has length ≠ `rows`, or any string length ≠ `cols`.
+- `frame.invert` (if present) has length ≠ `rows`, or any string length ≠ `cols`, or contains a char other than `'0'`/`'1'`.
 
 `invert` omitted → all cells not inverted.
 
