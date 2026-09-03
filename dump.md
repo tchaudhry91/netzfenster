@@ -144,15 +144,30 @@ A small program (Zig / Go / Python) that:
   polls one viewport and stays dumb. The schedule lives on the server.
 - **Naming**: `Cell` → `Grid` → `Frame` (the wire object: metadata + one grid).
 
+## Server decisions (session 3 — 2026-09-03)
+
+- **File structure**: `server/src/` split into `grid.zig` (Cell + Grid),
+  `frame.zig` (FrameSequence), `view.zig` (ViewPort). `root.zig` re-exports.
+  The plugin runner merged into `ViewPort.run`.
+- **ViewPort config**: each viewport is a JSON file
+  (`examples/viewports/<name>.json`) with `cmd` (a shell command string) and
+  `refresh_ms`. `ViewPort.init` reads + parses it; `ViewPort.run` shells out
+  via `sh -c <cmd>` with `cwd` = the viewports' base dir.
+- **Memory: request-scoped arena.** Each request spins up an `ArenaAllocator`;
+  everything (config, stdout, grid, frames, JSON) allocates from it and dies
+  with the request. No per-type `deinit` methods. `parseFromSliceLeaky` is the
+  parse entry point (allocates directly from the arena).
+- **Plugin contract (refined)**: a plugin is any command string run via
+  `sh -c`. It prints plain-text lines to stdout (one per row). The server
+  writes them to a grid via `writeText` (wraps long lines with a 2-space
+  indent, returns a resume index for pagination).
+
 ## Open questions / decisions
 
-- [ ] Frame sequence format: JSON vs binary, and how to specify frame rate/duration
 - [ ] Transport: HTTP polling vs WebSocket (start HTTP polling)
 - [ ] Font: Adafruit `glcdfont` vs custom (custom = terminal aesthetic)
-- [ ] Repo structure: `protocol/` + `server/` + `firmware/` + `client/` (terminal debug client)
 - [ ] Which view first: ADS-B plane counter (dump1090 already working)
-- [ ] Plugin interface: how a plugin is invoked and what it returns (stdout JSON? plain text?)
-- [ ] Loop length vs refresh interval (start ~3-5s loop, ~30-60s refresh)
+- [ ] Pagination: how to split long plugin output into multiple frames
 
 ## The "aha"
 
