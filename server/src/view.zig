@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub const ViewPort = struct {
     cmd: []const u8,
-    refresh_ms: u32,
+    refresh_ms: u32 = 1000,
     base_dir: []const u8 = "",
 
     pub fn init(arena: std.mem.Allocator, io: std.Io, base_dir_path: []const u8, name: []const u8) !ViewPort {
@@ -19,15 +19,3 @@ pub const ViewPort = struct {
         return result.stdout;
     }
 };
-
-test "viewport init and run" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    const io = std.testing.io;
-
-    var vw = try ViewPort.init(allocator, io, "/home/tchaudhry/Workspace/netzfenster/examples", "load_avg");
-    const output = try vw.run(allocator, io);
-    std.debug.print("OUTPUT:\n{s}\n", .{output});
-}

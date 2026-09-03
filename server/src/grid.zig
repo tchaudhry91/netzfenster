@@ -60,25 +60,25 @@ pub const Grid = struct {
     /// character that did not fit. The caller can resume by passing
     /// `text[returned..]`.
     pub fn writeText(self: *Grid, text: []const u8) usize {
-        var curCol: usize = 0;
-        var curRow: usize = 0;
+        var cur_col: usize = 0;
+        var cur_row: usize = 0;
         var lines = std.mem.splitScalar(u8, text, '\n');
         while (lines.next()) |line| {
-            if (curRow >= self.rows) {
+            if (cur_row >= self.rows) {
                 return (line.ptr - text.ptr);
             }
-            var ret = self.writeLine(curRow, curCol, line);
-            curRow += 1;
-            curCol = 2;
+            var ret = self.writeLine(cur_row, cur_col, line);
+            cur_row += 1;
+            cur_col = 2;
             while (ret != line.len) {
-                if (curRow >= self.rows) {
+                if (cur_row >= self.rows) {
                     return (line.ptr - text.ptr) + ret;
                 }
                 // Write the continuation lines if any
-                ret += self.writeLine(curRow, curCol, line[ret..]);
-                curRow += 1;
+                ret += self.writeLine(cur_row, cur_col, line[ret..]);
+                cur_row += 1;
             }
-            curCol = 0;
+            cur_col = 0;
         }
         return text.len;
     }

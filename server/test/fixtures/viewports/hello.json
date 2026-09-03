@@ -1,0 +1,4 @@
+{
+	"cmd": "echo HELLO; echo WORLD",
+	"refresh_ms": 60000
+}

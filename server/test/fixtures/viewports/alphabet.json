@@ -1,0 +1,4 @@
+{
+	"cmd": "echo A; echo B; echo C; echo D; echo E; echo F",
+	"refresh_ms": 60000
+}
