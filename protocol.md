@@ -152,7 +152,7 @@ rows = floor(pixel_height / 8)
 | ------------------ | -------- | ------ |
 | 0.96" SSD1306      | 128×64   | 21×8   |
 | 1.5" SSD1327       | 128×128  | 21×16  |
-| Terminal (zell)    | —        | any    |
+| Terminal (netzf-client) | —        | any    |
 
 The server is display-agnostic: it renders to the grid it is asked for.
 

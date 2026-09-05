@@ -124,9 +124,9 @@ A small program (Zig / Go / Python) that:
   sequences are small enough). The frame rate is server-specified (frame duration
   in the response).
 - **Terminal client (debugging flow)**: a small Zig program that polls the server
-  and renders the frame to the terminal using zell. It's the *reference client* —
-  the ESP32 firmware is a port of it to C + OLED. Develop and debug entirely in
-  the terminal.
+  and renders the frame to the terminal. It's a *testing* client (LLM-generated,
+  in `client/`) — the ESP32 firmware is the real target. Develop and debug
+  entirely in the terminal.
 
 ## Server decisions (session 2 — 2026-08-31)
 
@@ -182,11 +182,12 @@ A small program (Zig / Go / Python) that:
 ## Open questions / decisions
 
 - [x] Transport: HTTP polling (done — `GET /frame`)
+- [x] Pagination: `writeText` resume index splits long output into frames
+- [x] Terminal client (done — LLM-generated ANSI client in `client/`, for testing)
 - [ ] Font: Adafruit `glcdfont` vs custom (custom = terminal aesthetic)
 - [ ] Which view first: ADS-B plane counter (dump1090 already working)
-- [x] Pagination: `writeText` resume index splits long output into frames
 - [ ] Cycle viewport: list of sub-views + dwell time (deferred)
-- [ ] Terminal client (reference client, zell-based)
+- [ ] ESP32 firmware (C + OLED)
 
 ## The "aha"
 
