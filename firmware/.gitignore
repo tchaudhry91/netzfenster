@@ -1,0 +1,11 @@
+# ESP-IDF build output
+build/
+
+# sdkconfig backup (sdkconfig itself is committed)
+sdkconfig.old
+
+# Component manager downloads
+managed_components/
+
+# clangd cache
+.cache/
