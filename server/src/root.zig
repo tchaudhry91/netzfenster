@@ -9,7 +9,7 @@ pub const FrameSequence = frame.FrameSequence;
 
 pub const Config = struct { base_dir_path: []const u8, listen_addr: []const u8 };
 
-pub fn serializeViewPort(allocator: std.mem.Allocator, io: std.Io, name: []const u8, conf: Config, cols: u8, rows: u8) ![]const u8 {
+pub fn serializeViewPort(allocator: std.mem.Allocator, io: std.Io, name: []const u8, conf: Config, rows: u8, cols: u8) ![]const u8 {
     if (rows == 0 or cols == 0) {
         return error.InvalidDimensions;
     }
@@ -57,7 +57,7 @@ test "serializeViewPort returns a valid frame sequence" {
         .listen_addr = "127.0.0.1:8080",
     };
 
-    const json = try serializeViewPort(aa, io, "hello", conf, 21, 8);
+    const json = try serializeViewPort(aa, io, "hello", conf, 8, 21);
 
     var parsed = try std.json.parseFromSlice(std.json.Value, aa, json, .{});
     defer parsed.deinit();
@@ -102,7 +102,7 @@ test "serializeViewPort paginates long output across frames" {
         .listen_addr = "127.0.0.1:8080",
     };
 
-    const json = try serializeViewPort(aa, io, "alphabet", conf, 5, 2);
+    const json = try serializeViewPort(aa, io, "alphabet", conf, 2, 5);
 
     var parsed = try std.json.parseFromSlice(std.json.Value, aa, json, .{});
     defer parsed.deinit();

@@ -33,41 +33,56 @@ pub fn main(init: std.process.Init) !void {
 
     const ip_addr = try std.Io.net.IpAddress.parseLiteral(config.listen_addr);
 
-    var listener = try ip_addr.listen(io, .{});
+    var listener = try ip_addr.listen(io, .{ .reuse_address = true });
     defer listener.deinit(io);
     // Accept Loop
     while (true) {
         const stream = try listener.accept(io);
-        var local_arena = std.heap.ArenaAllocator.init(gpa);
-        defer local_arena.deinit();
-        const allocator = local_arena.allocator();
-        defer stream.close(io);
-
-        var read_buf: [4096]u8 = undefined;
-        var write_buf: [4096]u8 = undefined;
-
-        var reader = stream.reader(io, &read_buf);
-        var writer = stream.writer(io, &write_buf);
-
-        var http_server = std.http.Server.init(&reader.interface, &writer.interface);
-        var req = try http_server.receiveHead();
-        if (req.head.method != .GET) {
-            try req.respond("", .{ .status = .method_not_allowed });
-        }
-        const f_req = parseFrameRequest(allocator, req.head.target) catch |err| {
-            std.debug.print("{any}", .{err});
-            try req.respond("Error in Parsing Frame Request", .{ .status = .bad_request });
+        handleFrameRequest(stream, gpa, io, config) catch {
             continue;
         };
-        std.debug.print("{any}\n", .{f_req});
-
-        try req.respond("All Good mate", .{ .status = .ok, .extra_headers = &.{std.http.Header{ .name = "content-type", .value = "application/json" }} });
     }
     try stdout_writer.flush();
 }
 
+fn handleFrameRequest(
+    stream: std.Io.net.Stream,
+    gpa: std.mem.Allocator,
+    io: std.Io,
+    config: lib.Config,
+) !void {
+    var local_arena = std.heap.ArenaAllocator.init(gpa);
+    defer local_arena.deinit();
+    const allocator = local_arena.allocator();
+    defer stream.close(io);
+
+    var read_buf: [4096]u8 = undefined;
+    var write_buf: [4096]u8 = undefined;
+
+    var reader = stream.reader(io, &read_buf);
+    var writer = stream.writer(io, &write_buf);
+
+    var http_server = std.http.Server.init(&reader.interface, &writer.interface);
+    var req = try http_server.receiveHead();
+    if (req.head.method != .GET) {
+        try req.respond("MethodNotAllowed", .{ .keep_alive = false, .status = .method_not_allowed });
+        return error.MethodNotAllowed;
+    }
+    const f_req = parseFrameRequest(allocator, req.head.target) catch |err| {
+        std.log.err("Error Parsing Frame Request: {any}\n", .{err});
+        try req.respond("Error in Parsing Frame Request", .{ .status = .bad_request });
+        return error.BadRequest;
+    };
+    const serialized_vp = lib.serializeViewPort(allocator, io, f_req.ViewPort, config, @intCast(f_req.Rows), @intCast(f_req.Cols)) catch |err| {
+        std.log.err("Viewport Run Failure:{any}\n", .{err});
+        try req.respond("Error in executing viewport", .{ .status = .internal_server_error });
+        return error.ViewportError;
+    };
+    try req.respond(serialized_vp, .{ .status = .ok, .extra_headers = &.{std.http.Header{ .name = "content-type", .value = "application/json" }} });
+}
+
 const FrameRequest = struct {
-    ViewPorts: [][]const u8,
+    ViewPort: []const u8,
     Rows: usize,
     Cols: usize,
 };
@@ -76,7 +91,7 @@ fn parseFrameRequest(allocator: std.mem.Allocator, target: []const u8) !FrameReq
     var f_req: FrameRequest = FrameRequest{
         .Cols = 21,
         .Rows = 8,
-        .ViewPorts = &.{},
+        .ViewPort = &.{},
     };
     const path_query = std.mem.cutScalar(u8, target, '?');
     if (path_query == null) {
@@ -94,7 +109,7 @@ fn parseFrameRequest(allocator: std.mem.Allocator, target: []const u8) !FrameReq
         const Key = enum {
             ROWS,
             COLS,
-            VIEWPORTS,
+            VIEWPORT,
         };
 
         var key: ?Key = null;
@@ -107,8 +122,8 @@ fn parseFrameRequest(allocator: std.mem.Allocator, target: []const u8) !FrameReq
             key = .COLS;
         }
 
-        if (std.mem.startsWith(u8, param, "viewports")) {
-            key = .VIEWPORTS;
+        if (std.mem.startsWith(u8, param, "viewport")) {
+            key = .VIEWPORT;
         }
 
         if (key == null) {
@@ -124,15 +139,12 @@ fn parseFrameRequest(allocator: std.mem.Allocator, target: []const u8) !FrameReq
             Key.COLS => {
                 f_req.Cols = try std.fmt.parseInt(usize, kv.@"1", 10);
             },
-            Key.VIEWPORTS => {
-                var vp_iter = std.mem.splitScalar(u8, kv.@"1", ',');
-                var vps = try std.ArrayList([]const u8).initCapacity(allocator, 1);
-                while (vp_iter.next()) |vp| {
-                    try vps.append(allocator, vp);
-                }
-                f_req.ViewPorts = vps.items;
+            Key.VIEWPORT => {
+                f_req.ViewPort = try std.fmt.allocPrint(allocator, "{s}", .{kv.@"1"});
             },
         }
     }
+    if (f_req.Rows < 1 or f_req.Rows > 255) return error.InvalidDimensions;
+    if (f_req.Cols < 3 or f_req.Cols > 255) return error.InvalidDimensions;
     return f_req;
 }

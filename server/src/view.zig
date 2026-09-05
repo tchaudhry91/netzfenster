@@ -7,7 +7,7 @@ pub const ViewPort = struct {
 
     pub fn init(arena: std.mem.Allocator, io: std.Io, base_dir_path: []const u8, name: []const u8) !ViewPort {
         const base_dir = try std.Io.Dir.openDirAbsolute(io, base_dir_path, .{ .follow_symlinks = true, .access_sub_paths = true });
-        const viewport_file = try std.fs.path.join(arena, &.{ base_dir_path, "viewports", try std.fmt.allocPrint(arena, "{s}.json", .{name}) });
+        const viewport_file = try std.fs.path.join(arena, &.{ base_dir_path, try std.fmt.allocPrint(arena, "{s}.json", .{name}) });
         const viewport_data = try base_dir.readFileAlloc(io, viewport_file, arena, .unlimited);
         var vw = try std.json.parseFromSliceLeaky(ViewPort, arena, viewport_data, .{ .ignore_unknown_fields = true });
         vw.base_dir = try std.fmt.allocPrint(arena, "{s}", .{base_dir_path});
