@@ -162,12 +162,31 @@ A small program (Zig / Go / Python) that:
   writes them to a grid via `writeText` (wraps long lines with a 2-space
   indent, returns a resume index for pagination).
 
+## Server decisions (session 4 — 2026-09-05)
+
+- **HTTP server**: `std.http.Server` (single-connection handler) + a manual
+  accept loop over `std.Io.net`. `listen` once, then `accept → handle → close`
+  forever. One request per connection for now (no keep-alive reuse).
+- **Handler**: `GET /frame?viewport=<name>&rows=<n>&cols=<n>` → parse query →
+  `serializeViewPort` → JSON response. Errors: 400 (bad query/dimensions),
+  405 (non-GET, `keep_alive = false`), 500 (viewport run failure).
+- **Dimension guards**: `rows` 1..=255, `cols` 3..=255 (the 2-space wrap indent
+  means `cols < 3` breaks wrapping). Validated in `parseFrameRequest` before
+  `@intCast` to `u8`.
+- **Config via env vars**: `NETZF_HOME` (data dir, default `/opt/netzf`) and
+  `NETZF_LISTEN_ADDR` (default `127.0.0.1:8989`). Viewport JSONs live directly
+  in the data dir (`<name>.json`), scripts in `<data_dir>/scripts/`.
+- **Logging**: `std.log` with scoped loggers (`.server`, `.http`). Startup +
+  per-request logs (method, target, status).
+
 ## Open questions / decisions
 
-- [ ] Transport: HTTP polling vs WebSocket (start HTTP polling)
+- [x] Transport: HTTP polling (done — `GET /frame`)
 - [ ] Font: Adafruit `glcdfont` vs custom (custom = terminal aesthetic)
 - [ ] Which view first: ADS-B plane counter (dump1090 already working)
-- [ ] Pagination: how to split long plugin output into multiple frames
+- [x] Pagination: `writeText` resume index splits long output into frames
+- [ ] Cycle viewport: list of sub-views + dwell time (deferred)
+- [ ] Terminal client (reference client, zell-based)
 
 ## The "aha"
 

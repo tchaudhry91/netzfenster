@@ -3,6 +3,9 @@ const Io = std.Io;
 
 const lib = @import("server");
 
+const log = std.log.scoped(.server);
+const http_log = std.log.scoped(.http);
+
 pub fn main(init: std.process.Init) !void {
     const gpa: std.mem.Allocator = std.heap.page_allocator;
     var arena = std.heap.ArenaAllocator.init(gpa);
@@ -35,6 +38,8 @@ pub fn main(init: std.process.Init) !void {
 
     var listener = try ip_addr.listen(io, .{ .reuse_address = true });
     defer listener.deinit(io);
+    log.info("listening on {s}", .{listen_addr});
+    log.info("data dir: {s}", .{data_dir});
     // Accept Loop
     while (true) {
         const stream = try listener.accept(io);
@@ -65,20 +70,22 @@ fn handleFrameRequest(
     var http_server = std.http.Server.init(&reader.interface, &writer.interface);
     var req = try http_server.receiveHead();
     if (req.head.method != .GET) {
+        http_log.warn("{s} {s} -> 405", .{ @tagName(req.head.method), req.head.target });
         try req.respond("MethodNotAllowed", .{ .keep_alive = false, .status = .method_not_allowed });
         return error.MethodNotAllowed;
     }
     const f_req = parseFrameRequest(allocator, req.head.target) catch |err| {
-        std.log.err("Error Parsing Frame Request: {any}\n", .{err});
+        http_log.err("{s} {s} -> 400: {any}", .{ @tagName(req.head.method), req.head.target, err });
         try req.respond("Error in Parsing Frame Request", .{ .status = .bad_request });
         return error.BadRequest;
     };
     const serialized_vp = lib.serializeViewPort(allocator, io, f_req.ViewPort, config, @intCast(f_req.Rows), @intCast(f_req.Cols)) catch |err| {
-        std.log.err("Viewport Run Failure:{any}\n", .{err});
+        http_log.err("{s} {s} -> 500: {any}", .{ @tagName(req.head.method), req.head.target, err });
         try req.respond("Error in executing viewport", .{ .status = .internal_server_error });
         return error.ViewportError;
     };
     try req.respond(serialized_vp, .{ .status = .ok, .extra_headers = &.{std.http.Header{ .name = "content-type", .value = "application/json" }} });
+    http_log.info("{s} {s} -> 200", .{ @tagName(req.head.method), req.head.target });
 }
 
 const FrameRequest = struct {
