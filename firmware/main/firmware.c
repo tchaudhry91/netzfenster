@@ -1,12 +1,13 @@
 #include "driver/spi_common.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "hal/spi_types.h"
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include <sys/types.h>
 
 #define OLED_DC 9
 #define OLED_RES 8
@@ -70,6 +71,13 @@ void oled_init(spi_device_handle_t spi) {
   oled_command(spi, 0xAF); // display ON
 }
 
+void light_up(uint8_t x, uint8_t y, uint8_t fb[1024]) {
+  // Calculate position in framebuffer
+  uint8_t page = y / 8;
+  uint8_t bit = y % 8;
+  fb[page * 128 + x] |= (1 << bit);
+}
+
 void app_main(void) {
   spi_bus_config_t bus_config = {
       .mosi_io_num = 11,
@@ -97,6 +105,21 @@ void app_main(void) {
   gpio_set_level(OLED_RES, 1);   // reset HIGH (let it run)
 
   oled_init(spi);
-  oled_command(spi, 0xA5); // "entire display on" — forces all pixels on
-  printf("init + all-on done\n");
+  // Screen Ready!
+  uint8_t framebuffer[1024];
+
+  memset(framebuffer, 0, 1024);
+
+  // Let's try a rectangle.
+  for (int x = 0; x < 128; x++) {
+    for (int y = 0; y < 64; y++) {
+      if (x > 5 && x < 20) {
+        if (y > 10 && y < 20) {
+          light_up(x, y, framebuffer);
+        }
+      }
+    }
+  }
+
+  oled_data(spi, framebuffer, sizeof(framebuffer));
 }
