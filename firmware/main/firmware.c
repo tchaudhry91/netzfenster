@@ -1,4 +1,5 @@
 #include "driver/spi_common.h"
+#include "font.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hal/spi_types.h"
@@ -71,11 +72,15 @@ void oled_init(spi_device_handle_t spi) {
   oled_command(spi, 0xAF); // display ON
 }
 
-void light_up(uint8_t x, uint8_t y, uint8_t fb[1024]) {
-  // Calculate position in framebuffer
+void write_char(uint8_t row, uint8_t col, uint8_t c, uint8_t fb[1024]) {
+  int x = col * 6; // Pixel Coordinates
+  int y = row * 8; // Pixel Coordinates
+
+  // Fetch the font glyph
   uint8_t page = y / 8;
-  uint8_t bit = y % 8;
-  fb[page * 128 + x] |= (1 << bit);
+  for (int i = 0; i < 5; i++) {
+    fb[page * 128 + (x + i)] = font[(c * 5) + i];
+  }
 }
 
 void app_main(void) {
@@ -110,16 +115,11 @@ void app_main(void) {
 
   memset(framebuffer, 0, 1024);
 
-  // Let's try a rectangle.
-  for (int x = 0; x < 128; x++) {
-    for (int y = 0; y < 64; y++) {
-      if (x > 5 && x < 20) {
-        if (y > 10 && y < 20) {
-          light_up(x, y, framebuffer);
-        }
-      }
-    }
-  }
+  write_char(1, 1, 'h', framebuffer);
+  write_char(1, 2, 'e', framebuffer);
+  write_char(1, 3, 'l', framebuffer);
+  write_char(1, 4, 'l', framebuffer);
+  write_char(1, 5, 'o', framebuffer);
 
   oled_data(spi, framebuffer, sizeof(framebuffer));
 }
