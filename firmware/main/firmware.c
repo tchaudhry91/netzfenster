@@ -1,8 +1,12 @@
 #include "driver/spi_common.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "esp_wifi.h"
 #include "font.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hal/spi_types.h"
+#include "nvs_flash.h"
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
 #include <stdint.h>
@@ -14,6 +18,8 @@
 #define OLED_RES 8
 #define ROWS_MAX 8
 #define COLS_MAX 21
+#define WIFI_SSID "YOUR_SSID"
+#define WIFI_PASSWORD "YOUR_PASSWORD"
 
 void oled_command(spi_device_handle_t spi, uint8_t cmd) {
   gpio_set_level(OLED_DC, 0); // Sending command
@@ -93,7 +99,49 @@ void write_grid(uint8_t grid[ROWS_MAX][COLS_MAX + 1], uint8_t fb[1024]) {
   }
 }
 
+static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id,
+                               void *data) {
+  if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
+    esp_wifi_connect();
+  } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+    printf("wifi: disconnected, retrying...\n");
+    esp_wifi_connect();
+  } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
+    ip_event_got_ip_t *event = (ip_event_got_ip_t *)data;
+    printf("wifi: got IP " IPSTR "\n", IP2STR(&event->ip_info.ip));
+  }
+}
+
+static void wifi_init_sta(void) {
+  ESP_ERROR_CHECK(nvs_flash_init());
+  ESP_ERROR_CHECK(esp_netif_init());
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
+  esp_netif_create_default_wifi_sta();
+
+  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+  ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                                             &wifi_event_handler, NULL));
+  ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
+                                             &wifi_event_handler, NULL));
+
+  wifi_config_t wifi_config = {
+      .sta =
+          {
+              .ssid = WIFI_SSID,
+              .password = WIFI_PASSWORD,
+              .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+          },
+  };
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+  ESP_ERROR_CHECK(esp_wifi_start());
+}
+
 void app_main(void) {
+  wifi_init_sta();
+
   spi_bus_config_t bus_config = {
       .mosi_io_num = 11,
       .miso_io_num = -1,
