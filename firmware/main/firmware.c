@@ -12,6 +12,8 @@
 
 #define OLED_DC 9
 #define OLED_RES 8
+#define ROWS_MAX 8
+#define COLS_MAX 21
 
 void oled_command(spi_device_handle_t spi, uint8_t cmd) {
   gpio_set_level(OLED_DC, 0); // Sending command
@@ -83,6 +85,14 @@ void write_char(uint8_t row, uint8_t col, uint8_t c, uint8_t fb[1024]) {
   }
 }
 
+void write_grid(uint8_t grid[ROWS_MAX][COLS_MAX + 1], uint8_t fb[1024]) {
+  for (int r = 0; r < ROWS_MAX; r++) {
+    for (int c = 0; c < COLS_MAX; c++) {
+      write_char(r, c, grid[r][c], fb);
+    }
+  }
+}
+
 void app_main(void) {
   spi_bus_config_t bus_config = {
       .mosi_io_num = 11,
@@ -112,14 +122,16 @@ void app_main(void) {
   oled_init(spi);
   // Screen Ready!
   uint8_t framebuffer[1024];
-
   memset(framebuffer, 0, 1024);
 
-  write_char(1, 1, 'h', framebuffer);
-  write_char(1, 2, 'e', framebuffer);
-  write_char(1, 3, 'l', framebuffer);
-  write_char(1, 4, 'l', framebuffer);
-  write_char(1, 5, 'o', framebuffer);
+  // Hardcoded 21x8 grid (v0) — this is what the server will send in v1
+  uint8_t grid[ROWS_MAX][COLS_MAX + 1] = {
+      "netzfenster          ", "                     ", "hello world          ",
+      "                     ", "21 x 8 grid          ", "                     ",
+      "v0 firmware          ", "                     ",
+  };
+
+  write_grid(grid, framebuffer);
 
   oled_data(spi, framebuffer, sizeof(framebuffer));
 }
