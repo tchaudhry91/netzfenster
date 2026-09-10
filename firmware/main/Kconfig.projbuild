@@ -1,0 +1,15 @@
+menu "Netzfenster Configuration"
+
+    config NETZF_WIFI_SSID
+        string "WiFi SSID"
+        default "YOUR_SSID"
+        help
+            The SSID of the WiFi network to connect to.
+
+    config NETZF_WIFI_PASSWORD
+        string "WiFi Password"
+        default "YOUR_PASSWORD"
+        help
+            The password of the WiFi network.
+
+endmenu

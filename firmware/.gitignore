@@ -1,7 +1,8 @@
 # ESP-IDF build output
 build/
 
-# sdkconfig backup (sdkconfig itself is committed)
+# sdkconfig (machine-specific, contains local config like WiFi creds)
+sdkconfig
 sdkconfig.old
 
 # Component manager downloads

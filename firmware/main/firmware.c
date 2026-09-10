@@ -16,10 +16,12 @@
 
 #define OLED_DC 9
 #define OLED_RES 8
-#define ROWS_MAX 8
+#define ROWS_MAX 7
 #define COLS_MAX 21
-#define WIFI_SSID "YOUR_SSID"
-#define WIFI_PASSWORD "YOUR_PASSWORD"
+#define WIFI_SSID CONFIG_NETZF_WIFI_SSID
+#define WIFI_PASSWORD CONFIG_NETZF_WIFI_PASSWORD
+
+static bool wifi_connected = false;
 
 void oled_command(spi_device_handle_t spi, uint8_t cmd) {
   gpio_set_level(OLED_DC, 0); // Sending command
@@ -92,9 +94,22 @@ void write_char(uint8_t row, uint8_t col, uint8_t c, uint8_t fb[1024]) {
 }
 
 void write_grid(uint8_t grid[ROWS_MAX][COLS_MAX + 1], uint8_t fb[1024]) {
-  for (int r = 0; r < ROWS_MAX; r++) {
+  // First Two Rows is the Bar
+  uint8_t status[COLS_MAX];
+  uint8_t wifi_status[3] = "--";
+  if (wifi_connected) {
+    wifi_status[0] = 'O';
+    wifi_status[1] = 'K';
+  }
+  sprintf((char *)status, "NetzFenster! WiFi %s", wifi_status);
+  for (int i = 0; i < COLS_MAX; i++) {
+    write_char(0, i, status[i], fb);
+  }
+
+  // Now the other rows
+  for (int r = 0; r < ROWS_MAX - 2; r++) {
     for (int c = 0; c < COLS_MAX; c++) {
-      write_char(r, c, grid[r][c], fb);
+      write_char(r + 2, c, grid[r][c], fb);
     }
   }
 }
@@ -109,6 +124,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id,
   } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)data;
     printf("wifi: got IP " IPSTR "\n", IP2STR(&event->ip_info.ip));
+    wifi_connected = true;
   }
 }
 
@@ -174,12 +190,14 @@ void app_main(void) {
 
   // Hardcoded 21x8 grid (v0) — this is what the server will send in v1
   uint8_t grid[ROWS_MAX][COLS_MAX + 1] = {
-      "netzfenster          ", "                     ", "hello world          ",
-      "                     ", "21 x 8 grid          ", "                     ",
-      "v0 firmware          ", "                     ",
+      "hello world          ", "                     ", "21 x 8 grid          ",
+      "                     ", "v0 firmware          ", "                     ",
+      "                     ",
   };
 
-  write_grid(grid, framebuffer);
-
-  oled_data(spi, framebuffer, sizeof(framebuffer));
+  while (true) {
+    write_grid(grid, framebuffer);
+    oled_data(spi, framebuffer, sizeof(framebuffer));
+    vTaskDelay(pdMS_TO_TICKS(2000)); // wait 10ms
+  }
 }
