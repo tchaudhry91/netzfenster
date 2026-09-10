@@ -43,9 +43,8 @@ pub fn main(init: std.process.Init) !void {
     // Accept Loop
     while (true) {
         const stream = try listener.accept(io);
-        handleFrameRequest(stream, gpa, io, config) catch {
-            continue;
-        };
+        const thread = try std.Thread.spawn(.{}, handleFrameRequest, .{ stream, gpa, io, config });
+        thread.detach();
     }
     try stdout_writer.flush();
 }
