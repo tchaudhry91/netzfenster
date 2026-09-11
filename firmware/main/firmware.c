@@ -1,4 +1,6 @@
+#include "cJSON.h"
 #include "driver/spi_common.h"
+#include "esp_err.h"
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
@@ -6,9 +8,12 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hal/spi_types.h"
+#include "lwip/err.h"
 #include "nvs_flash.h"
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
+#include <esp_http_client.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -20,8 +25,15 @@
 #define COLS_MAX 21
 #define WIFI_SSID CONFIG_NETZF_WIFI_SSID
 #define WIFI_PASSWORD CONFIG_NETZF_WIFI_PASSWORD
+#define VIEWPORT "meta"
+#define NETZF_SERVER "http://192.168.29.203:8989"
 
 static bool wifi_connected = false;
+
+// Fixed-size working buffers — static so they live in .bss, not on the task
+// stack
+static uint8_t framebuffer[1024];
+static char json_buf[4096];
 
 void oled_command(spi_device_handle_t spi, uint8_t cmd) {
   gpio_set_level(OLED_DC, 0); // Sending command
@@ -93,8 +105,8 @@ void write_char(uint8_t row, uint8_t col, uint8_t c, uint8_t fb[1024]) {
   }
 }
 
-void write_grid(uint8_t grid[ROWS_MAX][COLS_MAX + 1], uint8_t fb[1024]) {
-  // First Two Rows is the Bar
+void write_grid(uint8_t grid[ROWS_MAX - 1][COLS_MAX + 1], uint8_t fb[1024]) {
+  // First Row is the Bar
   uint8_t status[COLS_MAX];
   uint8_t wifi_status[3] = "--";
   if (wifi_connected) {
@@ -107,9 +119,9 @@ void write_grid(uint8_t grid[ROWS_MAX][COLS_MAX + 1], uint8_t fb[1024]) {
   }
 
   // Now the other rows
-  for (int r = 0; r < ROWS_MAX - 2; r++) {
+  for (int r = 0; r < ROWS_MAX - 1; r++) {
     for (int c = 0; c < COLS_MAX; c++) {
-      write_char(r + 2, c, grid[r][c], fb);
+      write_char(r + 1, c, grid[r][c], fb);
     }
   }
 }
@@ -155,6 +167,51 @@ static void wifi_init_sta(void) {
   ESP_ERROR_CHECK(esp_wifi_start());
 }
 
+typedef struct {
+  char *buf;
+  size_t len;
+  size_t cap;
+} http_ctx_t;
+
+esp_err_t http_event_handler(esp_http_client_event_t *e) {
+  http_ctx_t *ctx = e->user_data;
+  if (e->event_id == HTTP_EVENT_ON_DATA) {
+    if (ctx->len + e->data_len < ctx->cap) {
+      memcpy(ctx->buf + ctx->len, e->data, e->data_len);
+      ctx->len += e->data_len;
+      ctx->buf[ctx->len] = '\0';
+    }
+  }
+  return ESP_OK;
+}
+
+static esp_err_t fetch_frame_data(const char *url, char *buf, size_t cap) {
+  http_ctx_t ctx = {.buf = buf, .len = 0, .cap = cap};
+
+  esp_http_client_config_t config = {.url = url,
+                                     .user_data = &ctx,
+                                     .method = HTTP_METHOD_GET,
+                                     .event_handler = http_event_handler};
+  esp_http_client_handle_t client = esp_http_client_init(&config);
+  if (client == NULL) {
+    return ESP_FAIL;
+  }
+  esp_err_t err = esp_http_client_perform(client);
+  esp_http_client_cleanup(client);
+  return err;
+};
+
+typedef struct {
+  char *rows[ROWS_MAX - 1];
+  char *invert[ROWS_MAX - 1];
+} frame_t;
+
+typedef struct {
+  frame_t *seq;
+  size_t len;
+  size_t cap;
+} frame_seq_t;
+
 void app_main(void) {
   wifi_init_sta();
 
@@ -185,19 +242,37 @@ void app_main(void) {
 
   oled_init(spi);
   // Screen Ready!
-  uint8_t framebuffer[1024];
-  memset(framebuffer, 0, 1024);
+  char url[128];
+  snprintf(url, sizeof(url), "%s/frame?viewport=%s&rows=%d&cols=%d",
+           NETZF_SERVER, VIEWPORT, ROWS_MAX - 1, COLS_MAX);
+
+  memset(framebuffer, 0,
+         1024); // redundant now (static starts zeroed) — kept for clarity
 
   // Hardcoded 21x8 grid (v0) — this is what the server will send in v1
-  uint8_t grid[ROWS_MAX][COLS_MAX + 1] = {
-      "hello world          ", "                     ", "21 x 8 grid          ",
-      "                     ", "v0 firmware          ", "                     ",
-      "                     ",
+  uint8_t grid[ROWS_MAX - 1][COLS_MAX + 1] = {
+      "    Connecting..     ", "                     ", "                     ",
+      "                     ", "                     ", "                     ",
   };
 
-  while (true) {
+  while (!wifi_connected) {
     write_grid(grid, framebuffer);
     oled_data(spi, framebuffer, sizeof(framebuffer));
-    vTaskDelay(pdMS_TO_TICKS(2000)); // wait 10ms
+    vTaskDelay(pdMS_TO_TICKS(1000)); // wait 1 second
+  }
+  // Wifi Connected Now!
+  //
+  strcpy((char *)grid[0], "    Fetching....     ");
+
+  while (true) {
+    esp_err_t err = fetch_frame_data(url, json_buf, sizeof(json_buf));
+    if (err == ESP_OK) {
+      printf("Fetched: %s", json_buf);
+    } else {
+      printf("Fetching Failed!: %s", json_buf);
+    }
+    write_grid(grid, framebuffer);
+    oled_data(spi, framebuffer, sizeof(framebuffer));
+    vTaskDelay(pdMS_TO_TICKS(5000)); // wait 1 second
   }
 }

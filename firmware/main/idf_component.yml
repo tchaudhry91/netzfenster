@@ -1,0 +1,6 @@
+## IDF Component Manager manifest for the main component.
+## Components listed here are fetched from the registry into managed_components/
+## at build time. cJSON (the JSON parser) moved out of the bundled IDF
+## components, so it comes from the registry now.
+dependencies:
+  espressif/cjson: "^1.7.19"
