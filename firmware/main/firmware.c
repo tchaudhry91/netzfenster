@@ -6,6 +6,7 @@
 #include "esp_wifi.h"
 #include "font.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/projdefs.h"
 #include "freertos/task.h"
 #include "hal/spi_types.h"
 #include "lwip/err.h"
@@ -27,6 +28,7 @@
 #define WIFI_PASSWORD CONFIG_NETZF_WIFI_PASSWORD
 #define VIEWPORT "meta"
 #define NETZF_SERVER "http://192.168.29.203:8989"
+#define EMPTY_ROW "                     "
 
 static bool wifi_connected = false;
 
@@ -105,8 +107,8 @@ void write_char(uint8_t row, uint8_t col, uint8_t c, uint8_t fb[1024]) {
   }
 }
 
-void write_grid(uint8_t grid[ROWS_MAX - 1][COLS_MAX + 1], uint8_t fb[1024]) {
-  // First Row is the Bar
+void write_grid(uint8_t grid[ROWS_MAX - 2][COLS_MAX + 1], uint8_t fb[1024]) {
+  // First Two Rows is the Bar (row 0 = status, row 1 = reserved blank)
   uint8_t status[COLS_MAX];
   uint8_t wifi_status[3] = "--";
   if (wifi_connected) {
@@ -119,9 +121,9 @@ void write_grid(uint8_t grid[ROWS_MAX - 1][COLS_MAX + 1], uint8_t fb[1024]) {
   }
 
   // Now the other rows
-  for (int r = 0; r < ROWS_MAX - 1; r++) {
+  for (int r = 0; r < ROWS_MAX - 2; r++) {
     for (int c = 0; c < COLS_MAX; c++) {
-      write_char(r + 1, c, grid[r][c], fb);
+      write_char(r + 2, c, grid[r][c], fb);
     }
   }
 }
@@ -201,17 +203,6 @@ static esp_err_t fetch_frame_data(const char *url, char *buf, size_t cap) {
   return err;
 };
 
-typedef struct {
-  char *rows[ROWS_MAX - 1];
-  char *invert[ROWS_MAX - 1];
-} frame_t;
-
-typedef struct {
-  frame_t *seq;
-  size_t len;
-  size_t cap;
-} frame_seq_t;
-
 void app_main(void) {
   wifi_init_sta();
 
@@ -244,16 +235,17 @@ void app_main(void) {
   // Screen Ready!
   char url[128];
   snprintf(url, sizeof(url), "%s/frame?viewport=%s&rows=%d&cols=%d",
-           NETZF_SERVER, VIEWPORT, ROWS_MAX - 1, COLS_MAX);
+           NETZF_SERVER, VIEWPORT, ROWS_MAX - 2, COLS_MAX);
 
   memset(framebuffer, 0,
          1024); // redundant now (static starts zeroed) — kept for clarity
 
   // Hardcoded 21x8 grid (v0) — this is what the server will send in v1
-  uint8_t grid[ROWS_MAX - 1][COLS_MAX + 1] = {
-      "    Connecting..     ", "                     ", "                     ",
-      "                     ", "                     ", "                     ",
-  };
+  uint8_t grid[ROWS_MAX - 2][COLS_MAX + 1] = {"    Connecting..     ",
+                                              EMPTY_ROW,
+                                              EMPTY_ROW,
+                                              EMPTY_ROW,
+                                              EMPTY_ROW};
 
   while (!wifi_connected) {
     write_grid(grid, framebuffer);
@@ -264,15 +256,43 @@ void app_main(void) {
   //
   strcpy((char *)grid[0], "    Fetching....     ");
 
+  // Paste the Network Framebuffer
   while (true) {
+    double refresh_delay = 30000; // 30 seconds by default
     esp_err_t err = fetch_frame_data(url, json_buf, sizeof(json_buf));
-    if (err == ESP_OK) {
-      printf("Fetched: %s", json_buf);
-    } else {
+    if (err != ESP_OK) {
       printf("Fetching Failed!: %s", json_buf);
+      vTaskDelay(pdMS_TO_TICKS(refresh_delay)); // Wait 30 seconds
+      continue;
     }
-    write_grid(grid, framebuffer);
-    oled_data(spi, framebuffer, sizeof(framebuffer));
-    vTaskDelay(pdMS_TO_TICKS(5000)); // wait 1 second
+    cJSON *root = cJSON_Parse(json_buf);
+    cJSON *frames = cJSON_GetObjectItem(root, "frames");
+    int len_frames = cJSON_GetArraySize(frames);
+    for (int i = 0; i < len_frames; i++) {
+      cJSON *frame = cJSON_GetArrayItem(frames, i);
+      cJSON *rows = cJSON_GetObjectItem(frame, "rows");
+      for (int j = 0; j < ROWS_MAX - 2; j++) {
+        int8_t row_data[COLS_MAX + 1] = EMPTY_ROW;
+        cJSON *row = cJSON_GetArrayItem(rows, j);
+        if (row != NULL) {
+          strncpy((char *)row_data, row->valuestring, COLS_MAX);
+        }
+        memcpy(grid[j], row_data, COLS_MAX + 1);
+      }
+      write_grid(grid, framebuffer);
+      oled_data(spi, framebuffer, sizeof(framebuffer));
+      // frame dwell
+      cJSON *frame_dwell_ms_n = cJSON_GetObjectItem(root, "frame_dwell_ms");
+      double frame_dwell_ms = 1000;
+      if (frame_dwell_ms_n != NULL) {
+        frame_dwell_ms = cJSON_GetNumberValue(frame_dwell_ms_n);
+      }
+      vTaskDelay(pdMS_TO_TICKS(frame_dwell_ms)); // Wait 10 seconds
+    }
+    cJSON *refresh_ms_n = cJSON_GetObjectItem(root, "refresh_ms");
+    if (refresh_ms_n != NULL) {
+      refresh_delay = cJSON_GetNumberValue(refresh_ms_n);
+    }
+    vTaskDelay(pdMS_TO_TICKS(refresh_delay));
   }
 }
