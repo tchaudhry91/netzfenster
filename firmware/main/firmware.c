@@ -293,6 +293,7 @@ void app_main(void) {
     if (refresh_ms_n != NULL) {
       refresh_delay = cJSON_GetNumberValue(refresh_ms_n);
     }
+    cJSON_Delete(root); // free the parsed tree (was leaking on every poll)
     vTaskDelay(pdMS_TO_TICKS(refresh_delay));
   }
 }
