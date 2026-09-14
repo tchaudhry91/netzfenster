@@ -12,4 +12,11 @@ menu "Netzfenster Configuration"
         help
             The password of the WiFi network.
 
+    config NETZF_SERVER
+        string "Netzfenster Server URL"
+        default "http://192.168.29.203:8989"
+        help
+            Base URL of the netzfenster HTTP server, e.g. http://<host>:8989.
+            The firmware appends /frame?viewport=...&rows=...&cols=...
+
 endmenu

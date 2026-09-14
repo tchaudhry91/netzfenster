@@ -27,7 +27,7 @@
 #define WIFI_SSID CONFIG_NETZF_WIFI_SSID
 #define WIFI_PASSWORD CONFIG_NETZF_WIFI_PASSWORD
 #define VIEWPORT "meta"
-#define NETZF_SERVER "http://192.168.29.203:8989"
+#define NETZF_SERVER CONFIG_NETZF_SERVER
 #define EMPTY_ROW "                     "
 
 static bool wifi_connected = false;
