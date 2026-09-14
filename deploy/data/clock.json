@@ -1,0 +1,4 @@
+{
+	"cmd": "scripts/clock.sh",
+	"refresh_ms": 1000
+}

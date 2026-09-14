@@ -1,0 +1,4 @@
+{
+	"cmd": "scripts/net.sh",
+	"refresh_ms": 30000
+}

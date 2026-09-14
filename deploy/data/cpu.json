@@ -1,0 +1,4 @@
+{
+	"cmd": "scripts/cpu.sh",
+	"refresh_ms": 5000
+}

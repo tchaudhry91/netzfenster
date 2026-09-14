@@ -1,0 +1,4 @@
+{
+	"cmd": "scripts/load_avg.sh",
+	"refresh_ms": 60000
+}

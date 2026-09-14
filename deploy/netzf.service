@@ -1,0 +1,15 @@
+[Unit]
+Description=netzfenster - network framebuffer server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Environment=NETZF_HOME=/opt/netzf
+Environment=NETZF_LISTEN_ADDR=0.0.0.0:8989
+ExecStart=/opt/netzf/bin/server
+User=tchaudhry
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

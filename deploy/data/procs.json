@@ -1,0 +1,4 @@
+{
+	"cmd": "scripts/procs.sh",
+	"refresh_ms": 10000
+}

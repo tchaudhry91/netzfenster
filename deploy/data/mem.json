@@ -1,0 +1,4 @@
+{
+	"cmd": "scripts/mem.sh",
+	"refresh_ms": 5000
+}
