@@ -207,9 +207,9 @@ void app_main(void) {
   wifi_init_sta();
 
   spi_bus_config_t bus_config = {
-      .mosi_io_num = 11,
+      .mosi_io_num = 12,
       .miso_io_num = -1,
-      .sclk_io_num = 12,
+      .sclk_io_num = 11,
       .max_transfer_sz = 4096,
       .quadhd_io_num = -1,
       .quadwp_io_num = -1,
