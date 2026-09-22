@@ -1,0 +1,4 @@
+{
+	"cmd": "scripts/devices.sh 5",
+	"refresh_ms": 18000
+}

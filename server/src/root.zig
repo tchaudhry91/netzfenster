@@ -20,7 +20,7 @@ pub fn serializeViewPort(allocator: std.mem.Allocator, io: std.Io, name: []const
     var vp = try view.ViewPort.init(aa, io, conf.base_dir_path, name);
     const vp_data = try vp.run(aa, io);
 
-    var fs = FrameSequence{ .rows = rows, .cols = cols, .version = 1, .refresh_ms = vp.refresh_ms, .viewport = name, .frame_dwell_ms = 1000, .frames = undefined };
+    var fs = FrameSequence{ .rows = rows, .cols = cols, .version = 1, .refresh_ms = vp.refresh_ms, .viewport = name, .frame_dwell_ms = 3000, .frames = undefined };
 
     var frames = try std.ArrayList(Grid).initCapacity(aa, 1);
     var written: usize = 0;
