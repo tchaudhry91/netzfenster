@@ -13,7 +13,7 @@ This repository is a **learning project**. The roles are fixed:
 
 1. **Never write code unless explicitly asked.** "Code" means anything that
    compiles or executes: Zig, C, Rust, shell scripts, build files, config that
-   drives a build, etc. Docs and specs (like `protocol.md`) are not code and
+   drives a build, etc. Docs and specs (like `README.md`) are not code and
    may be written when asked.
 2. **Explain, don't implement.** When the builder asks "how do I do X", explain
    the approach, show the concept, point at the relevant API — but let the
@@ -35,5 +35,5 @@ Netzfenster is a network framebuffer: a server computes a grid of cells and
 serves frame sequences over HTTP; a dumb client (terminal first, ESP32 later)
 renders them.
 
-- `protocol.md` — the wire format (the contract everything builds against).
-- `dump.md` — design notes and decisions.
+- `README.md` — what the project is and the wire format (the contract
+  everything builds against).

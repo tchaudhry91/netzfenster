@@ -6,7 +6,7 @@ over HTTP. A dumb client (terminal first, ESP32/OLED later) renders them.
 > **Handcoded for learning.** Every line of this server was written by hand,
 > deliberately, as a Zig learning project. No framework, no magic — the accept
 > loop, the HTTP parsing, the query parsing, the memory management, all of it
-> is explicit. See [`../dump.md`](../dump.md) for the design notes and
+> is explicit. See [`../README.md`](../README.md) for the project overview and
 > [`../AGENTS.md`](../AGENTS.md) for the working agreement.
 
 ## What it does
@@ -39,8 +39,8 @@ Environment variables:
 GET /frame?viewport=<name>&rows=<h>&cols=<w>
 ```
 
-Returns a JSON frame sequence. See [`../protocol.md`](../protocol.md) for the
-full wire format.
+Returns a JSON frame sequence. See the protocol section of the
+[`../README.md`](../README.md#protocol) for the full wire format.
 
 Errors: `400` (bad query / out-of-range dimensions), `405` (non-GET),
 `500` (viewport run failure).
